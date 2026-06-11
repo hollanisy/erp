@@ -8839,7 +8839,7 @@
         clearInterval(autoTimer);
         autoTimer = setInterval(function() {
             if (token && !syncing) window.gdriveSyncNow();
-        }, 3 * 60 * 1000);
+        }, 1 * 60 * 1000); // auto sync setiap 1 menit
     }
 
     // ── DEBOUNCED UPLOAD AFTER SAVE ───────────────────────────────
@@ -8852,9 +8852,26 @@
             clearTimeout(debTimer);
             debTimer = setTimeout(function() {
                 if (token && !syncing) window.gdriveSyncNow();
-            }, 8000); // 8 detik debounce
+            }, 3000); // 3 detik debounce
         }
     };
+
+    // ── SYNC SAAT BROWSER DITUTUP ────────────────────────────────
+    window.addEventListener('beforeunload', function() {
+        if (token && !syncing) {
+            // Sync synchronous saat tab ditutup
+            var local = collectLocal();
+            local._ts = new Date().toISOString();
+            var payload = JSON.stringify(local);
+            if (fileId) {
+                navigator.sendBeacon(
+                    'https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=media',
+                    new Blob([payload], { type: 'application/json' })
+                );
+            }
+            localStorage.setItem('_gd_local_ts', local._ts);
+        }
+    });
 
     // ── BOOT ──────────────────────────────────────────────────────
     window.addEventListener('load', function() {
