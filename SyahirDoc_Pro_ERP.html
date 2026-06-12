@@ -8724,22 +8724,25 @@
     }
 
     function ensureFile(fid) {
+        console.log('[SYNC] ensureFile - fileId var:', fileId, '| localStorage _gd_eid:', localStorage.getItem('_gd_eid'));
         if (fileId) return Promise.resolve(fileId);
         var cached = localStorage.getItem('_gd_eid');
         if (cached) { fileId = cached; return Promise.resolve(fileId); }
-        // drive.file scope: tidak bisa search — return null, file akan dibuat saat upload
+        console.warn('[SYNC] ensureFile: TIDAK ADA fileId sama sekali -> return null');
         return Promise.resolve(null);
     }
 
     // ── DOWNLOAD ──────────────────────────────────────────────────
     function driveDownload(fid) {
         return ensureFile(fid).then(function(eid) {
+            console.log('[SYNC] driveDownload - eid:', eid);
             if (!eid) return null;
             return apiFetch('https://www.googleapis.com/drive/v3/files/' + eid + '?alt=media')
-                .then(function(r){ return r.ok ? r.text() : null; })
+                .then(function(r){ console.log('[SYNC] download status:', r.status, r.ok); return r.ok ? r.text() : null; })
                 .then(function(t) {
+                    console.log('[SYNC] download text length:', t ? t.length : 0);
                     if (!t) return null;
-                    try { return JSON.parse(t); } catch(e){ return null; }
+                    try { return JSON.parse(t); } catch(e){ console.error('[SYNC] JSON parse error:', e); return null; }
                 });
         });
     }
@@ -8850,6 +8853,8 @@
             .then(function(ctx) {
                 var localTs = localStorage.getItem('_gd_local_ts') || '0';
                 var cloudTs = (ctx.cloud && ctx.cloud._ts) || '0';
+                console.log('[SYNC] DECISION - localTs:', localTs, '| cloudTs:', cloudTs, '| ctx.cloud ada:', !!ctx.cloud, '| ctx.fid:', ctx.fid);
+                if (ctx.cloud) console.log('[SYNC] cloud keys:', Object.keys(ctx.cloud.keys || {}));
 
                 // Safety: jika local belum pernah sync (_ts=0) tapi cloud SUDAH punya data,
                 // SELALU pakai data cloud agar tidak menimpa dengan data kosong
