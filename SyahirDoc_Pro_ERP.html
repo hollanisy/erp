@@ -8456,6 +8456,20 @@
                 </button>
                 <p id="gdrive-client-id-status" class="text-[10px] text-center text-gray-400"></p>
             </div>
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-2">
+                <p class="font-bold text-emerald-800">🔗 Folder ID Google Drive (PENTING untuk multi-PC)</p>
+                <p class="text-[10px] text-emerald-700">Agar data nyambung antar PC, semua PC harus pakai Folder ID yang SAMA. Folder ID PC ini (copy ke PC lain):</p>
+                <input id="gdrive-folder-id-display" type="text" readonly placeholder="Belum ada — sync sekali dulu"
+                    class="w-full p-2.5 border border-emerald-300 rounded-lg font-mono text-[10px] bg-emerald-50 focus:outline-emerald-500" onclick="this.select()">
+                <p class="text-[10px] text-emerald-700 mt-2">Untuk PC lain — paste Folder ID dari PC utama di sini, lalu Simpan:</p>
+                <input id="input-gdrive-folder-id" type="text" placeholder="Tempel Folder ID dari PC utama di sini"
+                    class="w-full p-2.5 border border-emerald-300 rounded-lg font-mono text-[10px] focus:outline-emerald-500">
+                <button onclick="gdriveSaveFolderId()"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg transition text-xs">
+                    💾 Pakai Folder ID Ini &amp; Sync
+                </button>
+                <p id="gdrive-folder-id-status" class="text-[10px] text-center text-gray-400"></p>
+            </div>
             <div class="space-y-3">
                 <p class="font-bold text-gray-800">📋 Langkah Setup (Cukup Sekali):</p>
                 <ol class="space-y-2 list-none pl-0">
@@ -8583,6 +8597,20 @@
         initTokenClient();
     };
 
+    window.gdriveSaveFolderId = function() {
+        var val = (document.getElementById('input-gdrive-folder-id').value || '').trim();
+        if (!val) { alert('Tempel Folder ID terlebih dahulu.'); return; }
+        folderId = val;
+        fileId = null;
+        localStorage.setItem('_gd_fid', folderId);
+        localStorage.removeItem('_gd_eid');
+        var st = document.getElementById('gdrive-folder-id-status');
+        if (st) st.textContent = '✅ Folder ID diset! Sinkronisasi dimulai...';
+        var disp = document.getElementById('gdrive-folder-id-display');
+        if (disp) disp.value = folderId;
+        if (token) window.gdriveSyncNow();
+    };
+
     // ── TOKEN CLIENT ──────────────────────────────────────────────
     var tokenClient = null;
     function initTokenClient() {
@@ -8657,7 +8685,11 @@
 
     // ── DRIVE FOLDER ──────────────────────────────────────────────
     function ensureFolder() {
-        if (folderId) return Promise.resolve(folderId);
+        if (folderId) {
+            var disp = document.getElementById('gdrive-folder-id-display');
+            if (disp && !disp.value) disp.value = folderId;
+            return Promise.resolve(folderId);
+        }
         // drive.file scope: tidak bisa search — langsung buat folder baru
         return apiFetch('https://www.googleapis.com/drive/v3/files', {
             method: 'POST',
@@ -8668,6 +8700,9 @@
             localStorage.setItem('_gd_fid', folderId);
             fileId = null;
             localStorage.removeItem('_gd_eid');
+            var disp = document.getElementById('gdrive-folder-id-display');
+            if (disp) disp.value = folderId;
+            showToast('📁 Folder baru dibuat di Drive. Buka Setup Client ID untuk copy Folder ID ke PC lain.');
             return folderId;
         });
     }
@@ -8797,6 +8832,17 @@
                 var localTs = localStorage.getItem('_gd_local_ts') || '0';
                 var cloudTs = (ctx.cloud && ctx.cloud._ts) || '0';
 
+                // Safety: jika local belum pernah sync (_ts=0) tapi cloud SUDAH punya data,
+                // SELALU pakai data cloud agar tidak menimpa dengan data kosong
+                if (ctx.cloud && localTs === '0') {
+                    progress(60, 'Menerapkan data cloud (sinkronisasi pertama)...');
+                    var n0 = applyCloud(ctx.cloud);
+                    localStorage.setItem('_gd_local_ts', cloudTs);
+                    reloadApp();
+                    showToast('☁️ Data cloud diterapkan (' + n0 + ' kunci). Sinkronisasi pertama berhasil.');
+                    return;
+                }
+
                 if (ctx.cloud && cloudTs > localTs) {
                     // Cloud lebih baru → terapkan ke lokal
                     progress(60, 'Menerapkan data cloud...');
@@ -8881,6 +8927,9 @@
         // Pre-fill Client ID
         var inp = document.getElementById('input-gdrive-client-id');
         if (inp && clientId) inp.value = clientId;
+        // Pre-fill Folder ID display jika sudah ada
+        var fdisp = document.getElementById('gdrive-folder-id-display');
+        if (fdisp && folderId) fdisp.value = folderId;
         // Restore last sync label
         var ts = localStorage.getItem('_gd_last_sync');
         if (ts) {
